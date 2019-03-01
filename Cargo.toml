@@ -8,13 +8,11 @@ rust-htslib = "0.20"
 csv = "1"
 failure = "*"
 clap = "*"
-rayon = "*"
 terminal_size = "*"
 human-panic = "1.0.1"
 simplelog = "0.5.0"
 log = "*"
 tempfile = "*"
-itertools = "*"
 
 [profile.release]
 debug = true
