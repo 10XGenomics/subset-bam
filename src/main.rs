@@ -1,23 +1,18 @@
 extern crate rust_htslib;
 extern crate clap;
 extern crate csv;
-extern crate rayon;
 extern crate terminal_size;
 extern crate tempfile;
 extern crate simplelog;
+extern crate failure;
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate human_panic;
 
-use std::io;
 use std::process;
-use std::cmp;
-use std::fs::{self, File};
+use std::fs::{self};
 use std::path::Path;
-use std::io::prelude::*;
 use std::io::{BufRead, BufReader};
 use std::collections::HashSet;
 use clap::{Arg, App};
@@ -27,7 +22,6 @@ use failure::Error;
 use rust_htslib::bam::record::Aux;
 use rust_htslib::bam::Record;
 use rust_htslib::bam;
-use rayon::prelude::*;
 
 fn get_args() -> clap::App<'static, 'static> {
     let args = App::new("subset-bam")
@@ -58,6 +52,16 @@ fn get_args() -> clap::App<'static, 'static> {
              .possible_values(&["info", "debug", "error"])
              .default_value("error")
              .help("Logging level"))
+        .arg(Arg::with_name("write_threads")
+             .long("write-threads")
+             .default_value("1")
+             .value_name("INTEGER")
+             .help("BAM writer threads. Passed directly to htslib."))
+        .arg(Arg::with_name("read_threads")
+             .long("read-threads")
+             .default_value("1")
+             .value_name("INTEGER")
+             .help("BAM reader threads. Passed directly to htslib."))
         .arg(Arg::with_name("bam_tag")
              .long("bam-tag")
              .default_value("CB")
@@ -86,6 +90,12 @@ fn _main(cli_args: Vec<String>) {
     let cell_barcodes = args.value_of("cell_barcodes").expect("You must provide a cell barcodes file");
     let out_bam_file = args.value_of("out_bam").expect("You must provide a path to write the new BAM file");
     let ll = args.value_of("log_level").unwrap();
+    let writer_threads = args.value_of("write_threads").unwrap_or_default()
+                                                       .parse::<usize>()
+                                                       .expect("Failed to convert writer threads to integer");
+    let reader_threads = args.value_of("read_threads").unwrap_or_default()
+                                                      .parse::<usize>()
+                                                      .expect("Failed to convert reader threads to integer");
     let bam_tag = args.value_of("bam_tag").unwrap_or_default().to_string();
     check_inputs_exist(bam_file, cell_barcodes, out_bam_file);
     let cell_barcodes = load_barcodes(&cell_barcodes).unwrap();
@@ -99,22 +109,31 @@ fn _main(cli_args: Vec<String>) {
 
     let _ = SimpleLogger::init(ll, Config::default());
 
+    let mut total_reads = 0;
+    let mut barcoded_reads = 0;
+    let mut kept_reads = 0;
+
     let bam = bam::IndexedReader::from_path(bam_file).unwrap();
     let mut out_bam = load_writer(&bam, &out_bam_file).unwrap();
-    out_bam.set_threads(2).unwrap();
+    out_bam.set_threads(writer_threads).unwrap();
     let mut bam = bam::Reader::from_path(bam_file).unwrap();
     use rust_htslib::bam::Read; // collides with fs::Read
-    bam.set_threads(2).unwrap();
+    bam.set_threads(reader_threads).unwrap();
     for r in bam.iter_chunk(None, None) {
         let rec = r.unwrap();
+        total_reads += 1;
         let barcode = get_cell_barcode(&rec, &bam_tag);
         if barcode.is_some() {
+            barcoded_reads += 1;
             let barcode = barcode.unwrap();
             if cell_barcodes.contains(&barcode) {
+                kept_reads += 1;
                 out_bam.write(&rec).unwrap();
             }
         }
     }
+    info!("Done!");
+    info!("Visited {} alignments, found {} with barcodes and kept {}", total_reads, barcoded_reads, kept_reads);
 }
 
 pub fn check_inputs_exist(bam_file: &str, cell_barcodes: &str, out_bam_path: &str) {
