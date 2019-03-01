@@ -21,7 +21,7 @@ main() {
     set -x
 
     # sanity check the file type
-    file target/"$TARGET"/debug/vartrix
+    file target/"$TARGET"/debug/subset-bam
 
     # Run tests
     cargo test --target "$TARGET" --verbose

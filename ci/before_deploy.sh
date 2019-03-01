@@ -28,9 +28,9 @@ mk_tarball() {
     # contains shell completion files and the man page.
     local cargo_out_dir="$(cargo_out_dir "target/$TARGET")"
 
-    # Copy the vartrix binary and strip it.
-    cp "target/$TARGET/release/vartrix" "$staging/vartrix"
-    #"${gcc_prefix}strip" "$staging/vartrix"
+    # Copy the subset-bam binary and strip it.
+    cp "target/$TARGET/release/subset-bam" "$staging/subset-bam"
+    #"${gcc_prefix}strip" "$staging/subset-bam"
     # Copy the licenses and README.
     cp {README.md,LICENSE} "$staging/"
 
