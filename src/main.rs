@@ -83,7 +83,7 @@ struct BamHolder {
 
 impl BamHolder {
     fn new(bam_path: &str) -> BamHolder {
-        let mut bam = bam::Reader::from_path(bam_path).unwrap();
+        let bam = bam::Reader::from_path(bam_path).unwrap();
         BamHolder {bam: bam}
     }
 }
@@ -99,7 +99,7 @@ impl<'a> ReadFilter<'a> {
            cell_barcodes: &'a HashSet<Vec<u8>>,
            bam_holder: &'a mut BamHolder,
            bam_tag: &'a String) -> ReadFilter<'a> {
-        let mut bam_iter = bam_holder.bam.iter_chunk(offset.0, offset.1);
+        let bam_iter = bam_holder.bam.iter_chunk(offset.0, offset.1);
         ReadFilter { cell_barcodes: cell_barcodes,
                      bam_iter: bam_iter,
                      bam_tag: bam_tag}
@@ -231,7 +231,7 @@ pub fn load_barcodes(filename: impl AsRef<Path>) -> Result<HashSet<Vec<u8>>, Err
 
     let mut bc_set = HashSet::new();
 
-    for (i, l) in reader.lines().enumerate() {
+    for l in reader.lines() {
         let seq = l?.into_bytes();
         bc_set.insert(seq);
     }
