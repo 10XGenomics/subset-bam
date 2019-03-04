@@ -25,11 +25,11 @@ This tool is not officially supported. If you have any comments, please submit a
 
 `--out-bam (-o)`: A path to write the subsetted BAM file to. REQUIRED.
 
-`--cores`: Number of parallel cores to use.
+`--cores`: Number of parallel cores to use. DEFAULT: 1.
 
 `--log-level`: One of `info`, `error` or `debug`. Increasing levels of logging. `Debug` mode is extremely verbose and will report on the fate of every single read. DEFAULT: error.
 
 `--bam-tag`: Change this to use an alternative tag to the default `CB` tag. This can be useful for subsetting BAMs from LongRanger.
 
 ## License
-VarTrix is licensed under the [MIT license](http://opensource.org/licenses/MIT). This project may not be copied, modified, or distributed except according to those terms.
+`subset-bam` is licensed under the [MIT license](http://opensource.org/licenses/MIT). This project may not be copied, modified, or distributed except according to those terms.
