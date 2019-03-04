@@ -6,6 +6,8 @@ extern crate tempfile;
 extern crate simplelog;
 extern crate failure;
 extern crate rayon;
+extern crate ring;
+extern crate data_encoding;
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -372,5 +374,50 @@ pub fn merge_bams(tmp_bams: Vec<&PathBuf>, out_bam_file: &Path) {
             let rec = _rec.unwrap();
             out_bam.write(&rec).unwrap();
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use ring::digest::{Context, Digest, SHA256};
+    use data_encoding::HEXUPPER;
+
+    /// Compute digest value for given `Reader` and print it
+    /// This is taken from the Rust cookbook
+    /// https://rust-lang-nursery.github.io/rust-cookbook/cryptography/hashing.html
+    fn sha256_digest<R: Read>(mut reader: R) -> Result<Digest, Error> {
+        let mut context = Context::new(&SHA256);
+        let mut buffer = [0; 1024];
+
+        loop {
+            let count = reader.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            context.update(&buffer[..count]);
+        }
+
+        Ok(context.finish())
+    }
+
+    #[test]
+    fn test_bam_single_core() {
+        let mut cmds = Vec::new();
+        let tmp_dir = tempdir().unwrap();
+        let out_file = tmp_dir.path().join("result.bam");
+        let out_file = out_file.to_str().unwrap();
+        for l in &["subset-bam", "-b", "test/test.bam", "-c", "test/barcodes.csv",
+                   "-o", out_file, "--cores", "1"] {
+            cmds.push(l.to_string());
+        }
+        _main(cmds);
+        let fh = fs::File::open(&out_file).unwrap();
+        let d = sha256_digest(fh).unwrap();
+        let d = HEXUPPER.encode(d.as_ref());
+        println!("{}", d);
+        assert_eq!(d, "65061704E9C15BFC8FECF07D1DE527AF666E7623525262334C3FDC62F366A69E");
     }
 }
