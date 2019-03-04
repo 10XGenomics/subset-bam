@@ -1,6 +1,6 @@
 [package]
 name = "subset-bam"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["Ian Fiddes <ian.fiddes@10xgenomics.com>"]
 
 [dependencies]
