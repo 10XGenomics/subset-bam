@@ -117,8 +117,6 @@ fn _main(cli_args: Vec<String>) {
                                       .parse::<u64>()
                                       .expect("Failed to convert cores to integer");                                  
     let bam_tag = args.value_of("bam_tag").unwrap_or_default().to_string();
-    check_inputs_exist(bam_file, cell_barcodes, out_bam_file);
-    let cell_barcodes = load_barcodes(&cell_barcodes).unwrap();
 
     let ll = match ll {
         "info" => LevelFilter::Info,
@@ -126,10 +124,13 @@ fn _main(cli_args: Vec<String>) {
         "error" => LevelFilter::Error,
         &_ => { println!("Log level not valid"); process::exit(1); }
     };
-
     let _ = SimpleLogger::init(ll, Config::default());
+
+    check_inputs_exist(bam_file, cell_barcodes, out_bam_file);
+    let cell_barcodes = load_barcodes(&cell_barcodes).unwrap();
     let tmp_dir = tempdir().unwrap();
     let virtual_offsets = bgzf_noffsets(&bam_file, &cores).unwrap();
+    
     let mut chunks = Vec::new();
     for (i, (virtual_start, virtual_stop)) in virtual_offsets.iter().enumerate() {
         let c = ChunkArgs {
