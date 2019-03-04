@@ -1,7 +1,7 @@
 language: rust
 env:
   global:
-  - PROJECT_NAME: vartrix
+  - PROJECT_NAME: subset-bam
   - RUST_BACKTRACE: full
 matrix:
   fast_finish: true
@@ -23,7 +23,7 @@ deploy:
   file_glob: true
   skip_cleanup: true
   on:
-    repo: 10XGenomics/vartrix
+    repo: 10XDev/subset-bam
     branch: master
     tags: true
     condition: "$TARGET = x86_64-apple-darwin"
