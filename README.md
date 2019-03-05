@@ -27,7 +27,7 @@ This tool is not officially supported. If you have any comments, please submit a
 
 `--cores`: Number of parallel cores to use. DEFAULT: 1.
 
-`--log-level`: One of `info`, `error` or `debug`. Increasing levels of logging. `Debug` mode is extremely verbose and will report on the fate of every single read. DEFAULT: error.
+`--log-level`: One of `info`, `error` or `debug`. Increasing levels of logging. DEFAULT: error.
 
 `--bam-tag`: Change this to use an alternative tag to the default `CB` tag. This can be useful for subsetting BAMs from LongRanger.
 
