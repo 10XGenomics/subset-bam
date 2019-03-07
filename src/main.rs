@@ -192,15 +192,23 @@ pub fn check_inputs_exist(bam_file: &str, cell_barcodes: &str, out_bam_path: &st
             process::exit(1);
         }
     }
-
-    let _dir = Path::new(out_bam_path).parent();
-    if _dir.is_none() {
+    let path = Path::new(out_bam_path);
+    if path.exists() {
+        error!("Output path already exists");
+        process::exit(1);
+    }
+    if path.is_dir() {
+        error!("Output path is a directory");
+        process::exit(1);
+    }
+    let _parent_dir = path.parent();
+    if _parent_dir.is_none() {
         error!("Unable to parse directory from {}", out_bam_path);
         process::exit(1);
     }
-    let dir = _dir.unwrap();
-    if (dir.to_str().unwrap().len() > 0) & !dir.exists() {
-        error!("Output directory {:?} does not exist", dir);
+    let parent_dir = _parent_dir.unwrap();
+    if (parent_dir.to_str().unwrap().len() > 0) & !parent_dir.exists() {
+        error!("Output directory {:?} does not exist", parent_dir);
         process::exit(1);
     }
     
