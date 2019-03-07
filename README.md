@@ -15,7 +15,7 @@ This tool is not officially supported. If you have any comments, please submit a
 `subset-bam` has automatically generated downloadable binaries for generic linux and Mac OSX under the [releases page](https://github.com/10XGenomics/vartrix/releases). The linux binaries are expected to work on [our supported Operating Systems](https://support.10xgenomics.com/os-support). 
 
 ## Compiling from source
-`subset-bam` is standard Rust executable project, that works with stable Rust >=1.13. Install Rust through the standard channels, then type `cargo build --release`. The executable will appear at `target/release/vartrix`. As usual it's important to use a release build to get good performance.
+`subset-bam` is standard Rust executable project, that works with stable Rust >=1.13. Install Rust through the standard channels, then type `cargo build --release`. The executable will appear at `target/release/subset-bam`. As usual it's important to use a release build to get good performance.
 
 ## Usage
 
