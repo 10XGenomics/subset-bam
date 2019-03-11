@@ -170,6 +170,11 @@ fn _main(cli_args: Vec<String>) {
         tmp_bams.push(&c.out_bam_file);
     }
 
+    if metrics.kept_reads == 0 {
+        error!("Zero alignments were kept. Does your BAM contain the cell barcodes and/or tag you chose?");
+        process::exit(2);
+    }
+
     // just copy the temp file over
     if cores == 1 {
         fs::copy(tmp_bams[0], out_bam_file).unwrap();
@@ -426,7 +431,6 @@ mod tests {
         let fh = fs::File::open(&out_file).unwrap();
         let d = sha256_digest(fh).unwrap();
         let d = HEXUPPER.encode(d.as_ref());
-        println!("{}", d);
         assert_eq!(d, "65061704E9C15BFC8FECF07D1DE527AF666E7623525262334C3FDC62F366A69E");
     }
 }
