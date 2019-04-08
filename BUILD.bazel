@@ -1,0 +1,15 @@
+load(
+    "@tenx_bazel_rules//rules:cargo.bzl",
+    "cargo_binary",
+)
+
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+cargo_binary(
+    name = "subset_bam",
+    crate_name = "subset-bam",
+    visibility = ["//visibility:public"],
+)
