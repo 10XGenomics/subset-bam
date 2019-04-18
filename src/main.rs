@@ -99,7 +99,7 @@ pub struct ChunkOuts {
 }
 
 fn main() {
-    setup_panic!();  // pretty panics for users
+    //setup_panic!();  // pretty panics for users
     let mut cli_args = Vec::new();
     for arg in std::env::args_os() {
         cli_args.push(arg.into_string().unwrap());
@@ -322,8 +322,15 @@ pub fn bgzf_noffsets(bam_path: &str, num_chunks: &u64) -> Result<Vec<(Option<i64
             }
         }
     }
-    // bit-shift and produce start/stop intervals
+     // bit-shift and produce start/stop intervals
     let mut final_offsets = Vec::new();
+    
+    // handle special case where we only found one offset
+    if adjusted_offsets.len() == 1 {
+        final_offsets.push((None, None));
+        return Ok(final_offsets)
+    }
+
     final_offsets.push((None, 
                         Some(((adjusted_offsets[1]) as i64) << 16)));
     for n in 2..num_chunks-1 {
