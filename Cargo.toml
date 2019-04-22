@@ -18,4 +18,5 @@ ring = "0.14.6"
 data-encoding = "*"
 
 [profile.release]
-debug = true
+debug = 1
+lto = true
