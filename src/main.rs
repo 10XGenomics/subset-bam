@@ -13,6 +13,7 @@ extern crate terminal_size;
 #[macro_use]
 extern crate log;
 extern crate human_panic;
+extern crate faccess;
 
 use clap::{App, Arg};
 use failure::Error;
@@ -30,6 +31,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use tempfile::tempdir;
 use terminal_size::{terminal_size, Width};
+use faccess::{AccessMode, PathExt};
 
 fn get_args() -> clap::App<'static, 'static> {
     let args = App::new("subset-bam")
@@ -216,6 +218,8 @@ pub fn check_inputs_exist(bam_file: &str, cell_barcodes: &str, out_bam_path: &st
         error!("Output path already exists");
         process::exit(1);
     }
+    // Make sure $TMPDIR is writable
+    assert!(path.access(AccessMode::WRITE).is_ok());
     if path.is_dir() {
         error!("Output path is a directory");
         process::exit(1);
