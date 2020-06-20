@@ -1,3 +1,5 @@
+// Copyright (c) 2020 10X Genomics, Inc. All rights reserved.
+
 extern crate rust_htslib;
 extern crate clap;
 extern crate csv;
@@ -10,7 +12,6 @@ extern crate ring;
 extern crate data_encoding;
 #[macro_use]
 extern crate log;
-#[macro_use]
 extern crate human_panic;
 
 use std::process;

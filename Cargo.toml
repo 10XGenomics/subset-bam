@@ -1,7 +1,7 @@
 [package]
 name = "subset-bam"
 version = "1.0.0"
-authors = ["Ian Fiddes <ian.fiddes@10xgenomics.com>"]
+authors = ["Ian Fiddes <ian.fiddes@10xgenomics.com>", "Wyatt McDonnell <wyatt.mcdonnell@10xgenomics.com>"]
 
 [dependencies]
 rust-htslib = "0.20"
