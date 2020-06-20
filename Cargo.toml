@@ -16,6 +16,7 @@ tempfile = "*"
 rayon = "*"
 ring = "0.14.6"
 data-encoding = "*"
+faccess="0.2.3"
 
 [profile.release]
 debug = 1

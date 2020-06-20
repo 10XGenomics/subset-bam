@@ -1,6 +1,6 @@
 # subset-bam
 
-`subset-bam` is a tool to subset a 10x Genomics BAM file based on a tag, most commonly the cell barcode tag. 
+`subset-bam` is a tool to subset a 10x Genomics BAM file based on a tag, most commonly the cell barcode tag. The latest version is `v1.1.0` and can be found [on the releases page](https://github.com/10XGenomics/subset-bam/releases).
 
 ## Overview of how it works
 `subset-bam` is a simple tool implemented in Rust that takes a 10x Genomics BAM file, a CSV file defining the subset of cells you want to isolate, and produces a new BAM file with only alignments associated with those cells.

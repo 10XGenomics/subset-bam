@@ -1,0 +1,45 @@
+name: Test subset-bam
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+env:
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  test-mac:
+    # This job runs on MacOS Catalina
+    runs-on: macos-latest
+    steps:
+      - name: rust version
+        run: rustup default 1.44.0
+      - name: add rustfmt 
+        run: rustup component add rustfmt
+      - name: Checkout subset-bam master
+        uses: actions/checkout@master
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
+      - name: build-subset-bam
+        run: cargo build --release
+      - name: unit tests
+        run: cargo test --release -- --nocapture 
+
+  test-linux:
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: rust version
+        run: rustup default 1.44.0
+      - name: add rustfmt
+        run: rustup component add rustfmt
+      - name: Checkout subset-bam master
+        uses: actions/checkout@master
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
+      - name: build-subset-bam
+        run: cargo build --release
+      - name: unit tests
+        run: cargo test --release -- --nocapture
