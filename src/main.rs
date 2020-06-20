@@ -34,8 +34,8 @@ use terminal_size::{terminal_size, Width};
 fn get_args() -> clap::App<'static, 'static> {
     let args = App::new("subset-bam")
         .set_term_width(if let Some((Width(w), _)) = terminal_size() { w as usize } else { 120 })
-        .version("1.0.0")
-        .author("Ian Fiddes <ian.fiddes@10xgenomics.com>")
+        .version("1.1.0")
+        .author("Ian Fiddes <ian.fiddes@10xgenomics.com>, Wyatt McDonnell <wyatt.mcdonnell@10xgenomics.com>")
         .about("Subsetting 10x Genomics BAM files")
         .arg(Arg::with_name("bam")
              .short("b")
