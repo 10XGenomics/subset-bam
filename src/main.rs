@@ -218,8 +218,6 @@ pub fn check_inputs_exist(bam_file: &str, cell_barcodes: &str, out_bam_path: &st
         error!("Output path already exists");
         process::exit(1);
     }
-    // Make sure $TMPDIR is writable
-    assert!(path.access(AccessMode::WRITE).is_ok());
     if path.is_dir() {
         error!("Output path is a directory");
         process::exit(1);
