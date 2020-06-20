@@ -12,10 +12,11 @@ extern crate tempfile;
 extern crate terminal_size;
 #[macro_use]
 extern crate log;
-extern crate human_panic;
 extern crate faccess;
+extern crate human_panic;
 
 use clap::{App, Arg};
+use faccess::{AccessMode, PathExt};
 use failure::Error;
 use rayon::prelude::*;
 use rust_htslib::bam;
@@ -31,7 +32,6 @@ use std::path::{Path, PathBuf};
 use std::process;
 use tempfile::tempdir;
 use terminal_size::{terminal_size, Width};
-use faccess::{AccessMode, PathExt};
 
 fn get_args() -> clap::App<'static, 'static> {
     let args = App::new("subset-bam")
