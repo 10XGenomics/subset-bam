@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: rust version
-        run: rustup default 1.44.0
+        run: rustup default 1.69.0
       - name: add rustfmt 
         run: rustup component add rustfmt
       - name: Checkout subset-bam master
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: rust version
-        run: rustup default 1.44.0
+        run: rustup default 1.69.0
       - name: add rustfmt
         run: rustup component add rustfmt
       - name: Checkout subset-bam master
