@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout git repository
-        uses: actions/checkout@master
+        uses: actions/checkout@v3
       - name: Login to GitHub Package Registry
         run: docker login docker.pkg.github.com -u 10xbuild -p ${{secrets.GH_PAT}}
       - name: Make release build
@@ -41,7 +41,7 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: 10.7
     steps:
       - name: Checkout git repository
-        uses: actions/checkout@master
+        uses: actions/checkout@v3
       - name: Make release build
         run: |
           cargo build --release

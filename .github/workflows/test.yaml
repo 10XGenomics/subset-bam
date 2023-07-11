@@ -16,10 +16,10 @@ jobs:
     steps:
       - name: rust version
         run: rustup default 1.69.0
-      - name: add rustfmt 
+      - name: add rustfmt
         run: rustup component add rustfmt
       - name: Checkout subset-bam master
-        uses: actions/checkout@master
+        uses: actions/checkout@v3
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: build-subset-bam
@@ -36,7 +36,7 @@ jobs:
       - name: add rustfmt
         run: rustup component add rustfmt
       - name: Checkout subset-bam master
-        uses: actions/checkout@master
+        uses: actions/checkout@v3
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: build-subset-bam
