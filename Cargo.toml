@@ -14,7 +14,7 @@ simplelog = "0.5.0"
 log = "*"
 tempfile = "*"
 rayon = "*"
-ring = "0.14.6"
+ring = "0.17.5"
 data-encoding = "*"
 faccess="0.2.4"
 
