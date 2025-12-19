@@ -1,28 +1,14 @@
-// Copyright (c) 2020 10X Genomics, Inc. All rights reserved.
+// Copyright (c) 2020 10X Genomics, Inc.
+// Modified 2025: add split-per-barcode mode and --dry-run; update to clap v4 and rust-htslib 0.46 APIs.
 
-extern crate clap;
-extern crate csv;
-extern crate data_encoding;
-extern crate failure;
-extern crate rayon;
-extern crate ring;
-extern crate rust_htslib;
-extern crate simplelog;
-extern crate tempfile;
-extern crate terminal_size;
-#[macro_use]
-extern crate log;
-extern crate faccess;
-extern crate human_panic;
-
-use clap::{App, Arg};
-use faccess::{AccessMode, PathExt};
-use failure::Error;
+use clap::{Arg, ArgAction, Command};
 use rayon::prelude::*;
 use rust_htslib::bam;
 use rust_htslib::bam::record::Aux;
+use rust_htslib::bam::Format;
 use rust_htslib::bam::Record;
 use simplelog::*;
+use log::{info, error, debug};
 use std::cmp;
 use std::collections::HashSet;
 use std::fs;
@@ -32,46 +18,75 @@ use std::path::{Path, PathBuf};
 use std::process;
 use tempfile::tempdir;
 use terminal_size::{terminal_size, Width};
+use failure::Error;
 
-fn get_args() -> clap::App<'static, 'static> {
-    let args = App::new("subset-bam")
-        .set_term_width(if let Some((Width(w), _)) = terminal_size() { w as usize } else { 120 })
-        .version("1.1.0")
-        .author("Ian Fiddes <ian.fiddes@10xgenomics.com>, Wyatt McDonnell <wyatt.mcdonnell@10xgenomics.com>")
+fn get_args() -> Command {
+    Command::new("subset-bam")
+        .term_width(terminal_size().map(|(Width(w), _)| w as usize).unwrap_or(120))
+        .version("1.2.0")
+        .author("Ian Fiddes <ian.fiddes@10xgenomics.com>, Wyatt McDonnell <wyatt.mcdonnell@10xgenomics.com>, Modified by Ben Johnson")
         .about("Subsetting 10x Genomics BAM files")
-        .arg(Arg::with_name("bam")
-             .short("b")
-             .long("bam")
-             .value_name("FILE")
-             .help("Cellranger BAM file.")
-             .required(true))
-        .arg(Arg::with_name("cell_barcodes")
-             .short("c")
-             .long("cell-barcodes")
-             .value_name("FILE")
-             .help("File with cell barcodes to be extracted.")
-             .required(true))
-        .arg(Arg::with_name("out_bam")
-             .short("o")
-             .long("out-bam")
-             .value_name("OUTPUT_FILE")
-             .help("Output BAM.")
-             .required(true))
-        .arg(Arg::with_name("log_level")
-             .long("log-level")
-             .possible_values(&["info", "debug", "error"])
-             .default_value("error")
-             .help("Logging level."))
-        .arg(Arg::with_name("cores")
-             .long("cores")
-             .default_value("1")
-             .value_name("INTEGER")
-             .help("Number of cores to use. If larger than 1, will write BAM subsets to temporary files before merging."))
-        .arg(Arg::with_name("bam_tag")
-             .long("bam-tag")
-             .default_value("CB")
-             .help("Change from default value (CB) to subset alignments based on alternative tags."));
-    args
+        .arg(
+            Arg::new("bam")
+                .short('b')
+                .long("bam")
+                .value_name("FILE")
+                .help("Cellranger BAM/CRAM file.")
+                .required(true),
+        )
+        .arg(
+            Arg::new("cell_barcodes")
+                .short('c')
+                .long("cell-barcodes")
+                .value_name("FILE")
+                .help("File with cell barcodes to be extracted (one per line).")
+                .required(true),
+        )
+        .arg(
+            Arg::new("out_bam")
+                .short('o')
+                .long("out-bam")
+                .value_name("OUTPUT_FILE")
+                .help("Output BAM (single-output mode)."),
+        )
+        .arg(
+            Arg::new("split_per_barcode")
+                .long("split-per-barcode")
+                .help("If set, write one BAM per barcode by looping over the BAM once per barcode.")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("out_dir")
+                .long("out-dir")
+                .value_name("DIR")
+                .help("Directory to receive <barcode>.bam files (used only with --split-per-barcode)."),
+        )
+        .arg(
+            Arg::new("dry_run")
+                .long("dry-run")
+                .help("If set with --split-per-barcode, only print which BAMs would be written (no processing).")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("log_level")
+                .long("log-level")
+                .value_parser(["info", "debug", "error"])
+                .default_value("error")
+                .help("Logging level."),
+        )
+        .arg(
+            Arg::new("cores")
+                .long("cores")
+                .default_value("1")
+                .value_name("INTEGER")
+                .help("Number of cores to use. If larger than 1, will write BAM subsets to temporary files before merging."),
+        )
+        .arg(
+            Arg::new("bam_tag")
+                .long("bam-tag")
+                .default_value("CB")
+                .help("Change from default value (CB) to subset alignments based on alternative tags."),
+        )
 }
 
 pub struct Locus {
@@ -102,30 +117,28 @@ pub struct ChunkOuts {
 }
 
 fn main() {
-    //setup_panic!();  // pretty panics for users
-    let mut cli_args = Vec::new();
-    for arg in std::env::args_os() {
-        cli_args.push(arg.into_string().unwrap());
-    }
+    let cli_args: Vec<String> = std::env::args().collect();
     _main(cli_args);
 }
 
 fn _main(cli_args: Vec<String>) {
     let args = get_args().get_matches_from(cli_args);
-    let bam_file = args.value_of("bam").expect("You must provide a BAM file");
-    let cell_barcodes = args
-        .value_of("cell_barcodes")
+    let bam_file = args.get_one::<String>("bam").expect("You must provide a BAM file");
+    let cell_barcodes_path = args
+        .get_one::<String>("cell_barcodes")
         .expect("You must provide a cell barcodes file");
-    let out_bam_file = args
-        .value_of("out_bam")
-        .expect("You must provide a path to write the new BAM file");
-    let ll = args.value_of("log_level").unwrap();
+
+    let ll = args.get_one::<String>("log_level").unwrap().as_str();
     let cores = args
-        .value_of("cores")
-        .unwrap_or_default()
+        .get_one::<String>("cores")
+        .unwrap()
         .parse::<u64>()
+
         .expect("Failed to convert cores to integer");
-    let bam_tag = args.value_of("bam_tag").unwrap_or_default().to_string();
+    let bam_tag = args.get_one::<String>("bam_tag").unwrap().to_string();
+
+    let split = *args.get_one::<bool>("split_per_barcode").unwrap_or(&false);
+    let dry_run = *args.get_one::<bool>("dry_run").unwrap_or(&false);
 
     let ll = match ll {
         "info" => LevelFilter::Info,
@@ -138,8 +151,50 @@ fn _main(cli_args: Vec<String>) {
     };
     let _ = SimpleLogger::init(ll, Config::default());
 
-    check_inputs_exist(bam_file, cell_barcodes, out_bam_file);
-    let cell_barcodes = load_barcodes(&cell_barcodes).unwrap();
+    if split {
+        // New minimal-change mode: loop over barcodes and emit one BAM per barcode.
+        let out_dir = args
+            .get_one::<String>("out_dir")
+            .map(|s| s.as_str())
+            .expect("--out-dir is required with --split-per-barcode");
+        ensure_bam_and_index(bam_file);
+        ensure_dir_exists(out_dir);
+
+        let barcodes_vec = load_barcodes_vec(&cell_barcodes_path).unwrap();
+        info!("Preparing to split into {} per-barcode BAMs", barcodes_vec.len());
+
+        if dry_run {
+            println!("--dry-run enabled; the following BAMs would be created in '{}':", out_dir);
+            for bc in &barcodes_vec {
+                println!("  {}", Path::new(out_dir).join(format!("{}.bam", bc)).display());
+            }
+            println!("Dry run complete; no BAMs were written.");
+            return;
+        }
+
+        for bc in barcodes_vec {
+            let mut set = HashSet::new();
+            set.insert(bc.as_bytes().to_vec());
+            let out_path = Path::new(out_dir).join(format!("{}.bam", bc));
+            if out_path.exists() {
+                eprintln!("Output already exists: {:?}", out_path);
+                process::exit(1);
+            }
+            let m = subset_for_barcode_set(bam_file, &set, &out_path, cores, &bam_tag);
+            info!("Wrote {:?} (kept {} reads)", out_path, m.kept_reads);
+        }
+        info!("Done.");
+        return;
+    }
+
+    // Original single-output behavior
+    let out_bam_file = args
+        .get_one::<String>("out_bam")
+        .map(|s| s.as_str())
+        .expect("You must provide a path to write the new BAM file");
+
+    check_inputs_exist(bam_file, cell_barcodes_path, out_bam_file);
+    let cell_barcodes = load_barcodes(&cell_barcodes_path).unwrap();
     let tmp_dir = tempdir().unwrap();
     let virtual_offsets = bgzf_noffsets(&bam_file, &cores).unwrap();
 
@@ -147,7 +202,7 @@ fn _main(cli_args: Vec<String>) {
     for (i, (virtual_start, virtual_stop)) in virtual_offsets.iter().enumerate() {
         let c = ChunkArgs {
             cell_barcodes: &cell_barcodes,
-            i: i,
+            i,
             bam_file: &bam_file,
             tmp_dir: tmp_dir.path(),
             bam_tag: bam_tag.clone(),
@@ -187,7 +242,7 @@ fn _main(cli_args: Vec<String>) {
     }
 
     if metrics.kept_reads == 0 {
-        error!("Zero alignments were kept. Does your BAM contain the cell barcodes and/or tag you chose?");
+        eprintln!("Zero alignments were kept. Does your BAM contain the cell barcodes and/or tag you chose?");
         process::exit(2);
     }
 
@@ -206,51 +261,146 @@ fn _main(cli_args: Vec<String>) {
     );
 }
 
+// NEW: ensure BAM exists and has index (.bai/.crai)
+fn ensure_bam_and_index(bam_file: &str) {
+    if !Path::new(bam_file).exists() {
+        eprintln!("BAM file {} does not exist", bam_file);
+        process::exit(1);
+    }
+    let extension = Path::new(bam_file).extension().unwrap().to_str().unwrap();
+    match extension {
+        "bam" => {
+            let bai = format!("{}.bai", bam_file);
+            if !Path::new(&bai).exists() {
+                eprintln!("BAM index {} does not exist", bai);
+                process::exit(1);
+            }
+        }
+        "cram" => {
+            let crai = format!("{}.crai", bam_file);
+            if !Path::new(&crai).exists() {
+                eprintln!("CRAM index {} does not exist", crai);
+                process::exit(1);
+            }
+        }
+        _ => {
+            eprintln!("BAM file did not end in .bam or .cram. Unable to validate");
+            process::exit(1);
+        }
+    }
+}
+
+fn ensure_dir_exists(dir: &str) {
+    let p = Path::new(dir);
+    if !p.exists() {
+        fs::create_dir_all(p).unwrap();
+    }
+    if !p.is_dir() {
+        eprintln!("--out-dir must be a directory");
+        process::exit(1);
+    }
+}
+
+// NEW: minimal wrapper to reuse existing chunking per-barcode-set
+fn subset_for_barcode_set(
+    bam_file: &str,
+    barcodes: &HashSet<Vec<u8>>,
+    out_bam_file: &Path,
+    cores: u64,
+    bam_tag: &str,
+) -> Metrics {
+    let tmp_dir = tempdir().unwrap();
+    let virtual_offsets = bgzf_noffsets(&bam_file, &cores).unwrap();
+
+    let mut chunks = Vec::new();
+    for (i, (virtual_start, virtual_stop)) in virtual_offsets.iter().enumerate() {
+        chunks.push(ChunkArgs {
+            cell_barcodes: barcodes,
+            i,
+            bam_file: &bam_file,
+            tmp_dir: tmp_dir.path(),
+            bam_tag: bam_tag.to_string(),
+            virtual_start: *virtual_start,
+            virtual_stop: *virtual_stop,
+        });
+    }
+
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(cores as usize)
+        .build()
+        .unwrap();
+    let results: Vec<_> = pool.install(|| {
+        chunks.par_iter().map(|chunk| slice_bam_chunk(chunk)).collect()
+    });
+
+    // combine metrics and temp outputs
+    let mut metrics = Metrics {
+        total_reads: 0,
+        barcoded_reads: 0,
+        kept_reads: 0,
+    };
+    let mut tmp_bams = Vec::new();
+    for c in results.iter() {
+        metrics.total_reads += c.metrics.total_reads;
+        metrics.barcoded_reads += c.metrics.barcoded_reads;
+        metrics.kept_reads += c.metrics.kept_reads;
+        tmp_bams.push(&c.out_bam_file);
+    }
+
+    if cores == 1 {
+        fs::copy(tmp_bams[0], out_bam_file).unwrap();
+    } else {
+        merge_bams(tmp_bams, out_bam_file);
+    }
+
+    metrics
+}
+
 pub fn check_inputs_exist(bam_file: &str, cell_barcodes: &str, out_bam_path: &str) {
     for path in [bam_file, cell_barcodes].iter() {
         if !Path::new(&path).exists() {
-            error!("File {} does not exist", path);
+            eprintln!("File {} does not exist", path);
             process::exit(1);
         }
     }
     let path = Path::new(out_bam_path);
     if path.exists() {
-        error!("Output path already exists");
+        eprintln!("Output path already exists");
         process::exit(1);
     }
     if path.is_dir() {
-        error!("Output path is a directory");
+        eprintln!("Output path is a directory");
         process::exit(1);
     }
     let _parent_dir = path.parent();
     if _parent_dir.is_none() {
-        error!("Unable to parse directory from {}", out_bam_path);
+        eprintln!("Unable to parse directory from {}", out_bam_path);
         process::exit(1);
     }
     let parent_dir = _parent_dir.unwrap();
     if (parent_dir.to_str().unwrap().len() > 0) & !parent_dir.exists() {
-        error!("Output directory {:?} does not exist", parent_dir);
+        eprintln!("Output directory {:?} does not exist", parent_dir);
         process::exit(1);
     }
 
     let extension = Path::new(bam_file).extension().unwrap().to_str().unwrap();
     match extension {
         "bam" => {
-            let bai = bam_file.to_owned() + ".bai";
+            let bai = format!("{}.bai", bam_file);
             if !Path::new(&bai).exists() {
-                error!("BAM index {} does not exist", bai);
+                eprintln!("BAM index {} does not exist", bai);
                 process::exit(1);
             }
         }
         "cram" => {
-            let crai = bam_file.to_owned() + ".crai";
+            let crai = format!("{}.crai", bam_file);
             if !Path::new(&crai).exists() {
-                error!("CRAM index {} does not exist", crai);
+                eprintln!("CRAM index {} does not exist", crai);
                 process::exit(1);
             }
         }
-        &_ => {
-            error!("BAM file did not end in .bam or .cram. Unable to validate");
+        _ => {
+            eprintln!("BAM file did not end in .bam or .cram. Unable to validate");
             process::exit(1);
         }
     }
@@ -268,28 +418,46 @@ pub fn load_barcodes(filename: impl AsRef<Path>) -> Result<HashSet<Vec<u8>>, Err
     }
     let num_bcs = bc_set.len();
     if num_bcs == 0 {
-        error!("Loaded 0 barcodes. Is your barcode file gzipped or empty?");
+        eprintln!("Loaded 0 barcodes. Is your barcode file gzipped or empty?");
         process::exit(1);
     }
-    debug!("Loaded {} barcodes", num_bcs);
     Ok(bc_set)
 }
 
-pub fn get_cell_barcode(rec: &Record, bam_tag: &str) -> Option<Vec<u8>> {
-    //println!("{:?}", rec.aux(bam_tag.as_bytes()));
-    match rec.aux(bam_tag.as_bytes()) {
-        Some(Aux::String(hp)) => {
-            let cb = hp.to_vec();
-            Some(cb)
+// NEW: load barcodes preserving order as Vec<String>
+fn load_barcodes_vec(filename: impl AsRef<Path>) -> Result<Vec<String>, Error> {
+    let r = fs::File::open(filename.as_ref())?;
+    let reader = BufReader::with_capacity(32 * 1024, r);
+
+    let mut v = Vec::new();
+    for l in reader.lines() {
+        let s = l?;
+        let s = s.trim().to_string();
+        if !s.is_empty() {
+            v.push(s);
         }
-        _ => None,
+    }
+    if v.is_empty() {
+        eprintln!("Loaded 0 barcodes. Is your barcode file gzipped or empty?");
+        process::exit(1);
+    }
+    Ok(v)
+}
+
+pub fn get_cell_barcode(rec: &Record, bam_tag: &str) -> Option<Vec<u8>> {
+    match rec.aux(bam_tag.as_bytes()) {
+        Ok(Aux::String(s)) => {
+            Some(s.as_bytes().to_vec())
+        }
+        Ok(_) => None,
+        Err(_) => None,
     }
 }
 
 pub fn load_writer(bam: &bam::Reader, out_bam_path: &Path) -> Result<bam::Writer, Error> {
     use rust_htslib::bam::Read; // collides with fs::Read
     let hdr = rust_htslib::bam::Header::from_template(bam.header());
-    let out_handle = bam::Writer::from_path(out_bam_path, &hdr)?;
+    let out_handle = bam::Writer::from_path(out_bam_path, &hdr, Format::Bam)?;
     Ok(out_handle)
 }
 
@@ -366,7 +534,6 @@ pub fn bgzf_noffsets(
 
 pub fn is_valid_bgzf_block(block: &[u8]) -> bool {
     // look for the bgzip magic characters \x1f\x8b\x08\x04
-    // TODO: is this sufficient?
     if block.len() < 18 {
         return false;
     }
@@ -389,9 +556,8 @@ pub fn slice_bam_chunk(args: &ChunkArgs) -> ChunkOuts {
         let rec = r.unwrap();
         metrics.total_reads += 1;
         let barcode = get_cell_barcode(&rec, &args.bam_tag);
-        if barcode.is_some() {
+        if let Some(barcode) = barcode {
             metrics.barcoded_reads += 1;
-            let barcode = barcode.unwrap();
             if args.cell_barcodes.contains(&barcode) {
                 metrics.kept_reads += 1;
                 out_bam.write(&rec).unwrap();
@@ -399,8 +565,8 @@ pub fn slice_bam_chunk(args: &ChunkArgs) -> ChunkOuts {
         }
     }
     let r = ChunkOuts {
-        metrics: metrics,
-        out_bam_file: out_bam_file,
+        metrics,
+        out_bam_file,
     };
     info!("Chunk {} is done", args.i);
     r
@@ -424,11 +590,10 @@ mod tests {
     use super::*;
     use data_encoding::HEXUPPER;
     use ring::digest::{Context, Digest, SHA256};
+    use std::io::Read;
     use tempfile::tempdir;
 
     /// Compute digest value for given `Reader` and print it
-    /// This is taken from the Rust cookbook
-    /// https://rust-lang-nursery.github.io/rust-cookbook/cryptography/hashing.html
     fn sha256_digest<R: Read>(mut reader: R) -> Result<Digest, Error> {
         let mut context = Context::new(&SHA256);
         let mut buffer = [0; 1024];
